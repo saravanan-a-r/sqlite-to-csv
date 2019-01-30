@@ -1,83 +1,116 @@
-const fs = require("fs");
-const sqlite3 = require("sqlite3");
-
-module.exports = {
-    toCSV : toCSV
-};
-
-function toCSV(args, error) {
-
-    if(!args.filePath) {
-        error("ERR102 :: filePath params missing in first argument of toCSV()");
-        return;
+class ToCsv {
+    constructor(filePath, outputPath) {
+        this.filePath = filePath;
+        this.outputPath = outputPath;
     }
 
-    if(!args.outputPath) {
-        error("ERR103 :: outputPath params missing in first argument of toCSV()");
+    setFilePath(filePath) {
+        this.filePath = filePath;
+        return this;
     }
+
+    setOutputPath(outputPath) {
+        this.outputPath = outputPath;
+        return this;
+    }
+
+    convert() {
+
+        return new Promise( async (resolve, reject) => {
+            try {
+                let filePath = this.filePath;
+                let outputPath = this.outputPath;
+
+                if(!filePath) {
+                    throw "ERR102 :: filePath params missing in first argument of toCSV()";
+                }
+
+                if(!outputPath) {
+                    throw "ERR103 :: outputPath params missing in first argument of toCSV()";
+                }
+
+                const fs = require("fs");
+
+                if(!fs.existsSync(filePath)) {
+                    throw "ERR100 :: " + filePath + "not found";
+                }
+
+                if(!fs.existsSync(outputPath)) {
+                    console.log("WRN200 :: Output path director not found. Default folder named \"csv\" is created in current working directory");
+                    fs.mkdirSync("csv");
+                    this.outputPath = "csv";
+                    outputPath = this.outputPath;
+                }
     
-    if(!fs.existsSync(args.filePath)) {
-        error("ERR100 :: " + filePath + "not found");
-        return;
-    }
+                const sqlite3 = require("sqlite3");
 
-    if(!fs.existsSync(args.outputPath)) {
-        error("WRN200 :: Output path director not found. Default folder named \"csv\" is created in current working directory");
-        fs.mkdirSync("csv");
-        args.outputPath = "csv";
-    }
-
-    var db = new sqlite3.Database(args.filePath, sqlite3.OPEN_READONLY, (err) => {
-        if(err) {
-            error("ERR101 : Failed to open given database with read only mode \n" + err );
-        }
-    });
-
-    var tblNames = [];
-
-    var tblMeta = [];
-
-    db.serialize( () => {
-
-        db.all("select name, sql from sqlite_master where type='table'", [], (err, rows) => {
-            if(err) {
-                error("ERR103 :: Failed to execute query :: select name from sqlite_master where type='table'");
-                return;
-            }
-            tblMeta = rows.filterTblMeta(rows);
-            readTables(tblNames);
-        });
-
-        var readTables = (tblNames, error) => {
-
-            tblNames.map( (tbl) => {
-        
-                db.all("select * from " + tbl, [], (err, rows) => {
+                let db = new sqlite3.Database(filePath, sqlite3.OPEN_READONLY, (err) => {
                     if(err) {
-                        error("ERR103 :: Failed to execute query :: select * from " + tbl);
-                        return;
+                        throw "ERR101 : Failed to open given database with read only mode \n" + err;
                     }
-                    writeCSV(rows, tbl + ".csv", args.outputPath);
                 });
-            });
-        };
-    });
-}
-
-function writeCSV(rows, filePath, outputPath) {
-
-    var columnNames = "\"" + Object.keys(rows.length ? rows[0] : []).join("\",\"") + "\"";
-    var csvData = columnNames + "\n";
-
-    rows.map( (row) => {
-        csvData = csvData + "\"" + Object.values(row).join("\",\"") + "\"" + "\n";
-    });
     
-    fs.writeFile(outputPath + "/" + filePath, csvData, "utf-8", (err) => {
-        if(err) {
-            error("ERR104 :: Failed to write to " + outputPath + "/" + filePath);
-        }
-    });
+                let tblNames = [];
+                let tblMeta = [];
+
+                db.serialize( () => {
+
+                    db.all("select name, sql from sqlite_master where type='table'", [], (err, rows) => {
+                        if(err) {
+                            throw "ERR103 :: Failed to execute query :: select name from sqlite_master where type='table'";
+                        }
+                        tblMeta = rows.filterTblMeta(rows);
+                        readTables(tblNames);
+                    });
+        
+                    var readTables = (tblNames, error) => {
+            
+                        tblNames.map( async (tbl) => {
+                    
+                            db.all("select * from " + tbl, [], async (err, rows) => {
+                                if(err) {
+                                    throw "ERR103 :: Failed to execute query :: select * from " + tbl;
+                                    return;
+                                }
+                                await this.writeCSV(rows, tbl + ".csv", outputPath);
+                                resolve({
+                                    code : 200,
+                                    message : "success"
+                                });
+                            });
+                        });
+                    };
+                });
+            }
+            catch(err) {
+                console.log(err);
+            }
+        });
+    }
+
+    writeCSV(rows, filePath, outputPath) {
+
+        return new Promise( async (resolve, reject) => {
+            try {
+                let columnNames = "\"" + Object.keys(rows.length ? rows[0] : []).join("\",\"") + "\"";
+                let csvData = columnNames + "\n";
+    
+                rows.map( (row) => {
+                    csvData = csvData + "\"" + Object.values(row).join("\",\"") + "\"" + "\n";
+                });
+                
+                fs.writeFile(outputPath + "/" + filePath, csvData, "utf-8", (err) => {
+                    if(err) {
+                        throw "ERR104 :: Failed to write to " + outputPath + "/" + filePath;
+                    }
+                });
+            }
+            catch(err) {
+                throw err;
+            }
+        });
+    
+    }
 }
 
 Array.prototype.filterTblMeta = (arr) => {
@@ -85,24 +118,20 @@ Array.prototype.filterTblMeta = (arr) => {
     var values  = [];
     arr.map( (obj) => {
         if(obj.name && obj.sql) {
-            debugger;
             var columns = obj.sql.match(/.*CREATE\s+TABLE\s+(\S+)\s*\((.*)\).*/)[2].split(/,/);
-            
             for(i = 0;i < columns.length; i++) {
                 columns[i] = columns[i].replace(/\s.*/g, '');
             }
-            console.log(columns);
-            debugger;
-            // values.push({
-            //     name : obj.name,
-                
-            // }); 
+            values.push({
+                name : obj.name,
+            }); 
         }
     });
 
     return values;
 }
 
+module.exports = ToCsv;
 
 /* --- Error Handling --- */
 /*
