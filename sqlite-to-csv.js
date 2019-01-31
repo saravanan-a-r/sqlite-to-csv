@@ -1,7 +1,9 @@
 class ToCsv {
-    constructor(filePath, outputPath) {
+    constructor(filePath, outputPath, logPath) {
         this.filePath = filePath;
         this.outputPath = outputPath;
+        this.logPath = logPath;
+        this.db = undefined;
     }
 
     setFilePath(filePath) {
@@ -11,6 +13,11 @@ class ToCsv {
 
     setOutputPath(outputPath) {
         this.outputPath = outputPath;
+        return this;
+    }
+
+    setLogPath(logPath) {
+        this.logPath = logPath + "/sqliteToCsv.log";
         return this;
     }
 
@@ -36,7 +43,7 @@ class ToCsv {
                 }
 
                 if(!fs.existsSync(outputPath)) {
-                    console.log("WRN200 :: Output path director not found. Default folder named \"csv\" is created in current working directory");
+                    this.writeLog("WRN200 :: Output path director not found. Default folder named \"csv\" is created in current working directory");
                     fs.mkdirSync("csv");
                     this.outputPath = "csv";
                     outputPath = this.outputPath;
@@ -49,46 +56,52 @@ class ToCsv {
                         throw "ERR101 : Failed to open given database with read only mode \n" + err;
                     }
                 });
-    
-                let tblNames = [];
-                let tblMeta = [];
+
+                this.db = db;
 
                 db.serialize( () => {
 
-                    db.all("select name, sql from sqlite_master where type='table'", [], (err, rows) => {
+                    db.all("select name, sql from sqlite_master where type='table'", [], async (err, rows) => {
                         if(err) {
                             throw "ERR103 :: Failed to execute query :: select name from sqlite_master where type='table'";
                         }
-                        tblMeta = rows.filterTblMeta(rows);
-                        readTables(tblNames);
-                    });
-        
-                    var readTables = (tblNames, error) => {
-            
-                        tblNames.map( async (tbl) => {
-                    
-                            db.all("select * from " + tbl, [], async (err, rows) => {
-                                if(err) {
-                                    throw "ERR103 :: Failed to execute query :: select * from " + tbl;
-                                    return;
-                                }
-                                await this.writeCSV(rows, tbl + ".csv", outputPath);
-                                resolve({
-                                    code : 200,
-                                    message : "success"
-                                });
-                            });
+                        let tblMeta = rows.filterTblMeta(rows);
+                        let tableLen = tblMeta.length;
+
+                        for(let i = 0; i<tableLen; i++) {
+                            let tableData = await this.readTable(tblMeta[i].name);
+                            await this.writeTableToCsv(tableData, tblMeta[i].name + ".csv", outputPath);
+                        }
+
+                        resolve({
+                            code : 200,
+                            message : "success"
                         });
-                    };
+                    });
+    
                 });
             }
             catch(err) {
-                console.log(err);
+                this.writeLog(err);
+                reject(err);
             }
         });
     }
 
-    writeCSV(rows, filePath, outputPath) {
+    readTable(tableName) {
+        return new Promise( (resolve, reject) => { 
+            let db = this.db;
+            let outputPath = this.outputPath
+            db.all("select * from " + tableName, [], async (err, rows) => {
+                if(err) {
+                    throw "ERR103 :: Failed to execute query :: select * from " + tableName;
+                }
+                resolve(rows);
+            });
+        })
+    }
+
+    writeTableToCsv(rows, filePath, outputPath) {
 
         return new Promise( async (resolve, reject) => {
             try {
@@ -99,9 +112,17 @@ class ToCsv {
                     csvData = csvData + "\"" + Object.values(row).join("\",\"") + "\"" + "\n";
                 });
                 
+                let fs = require('fs');
+
                 fs.writeFile(outputPath + "/" + filePath, csvData, "utf-8", (err) => {
                     if(err) {
                         throw "ERR104 :: Failed to write to " + outputPath + "/" + filePath;
+                    }
+                    else {
+                        resolve({
+                            code : 200,
+                            message : "Write operation success"
+                        })
                     }
                 });
             }
@@ -110,6 +131,28 @@ class ToCsv {
             }
         });
     
+    }
+
+    writeLog(message) {
+        try {
+            let logPath = this.logPath;
+            if(!logPath) {
+                console.log(message);
+                return;
+            }
+            let fs = require("fs");
+            fs.appendFileSync(logPath, message);
+        }
+        catch(err) {
+            console.log("Exception in writeLog() :: " + this.parseObj(err));
+        }
+    }
+
+    parseObj(obj) {
+        if(typeof obj === "object") {
+            return JSON.parse(obj);
+        }
+        return obj;
     }
 }
 
@@ -147,6 +190,3 @@ ERR104 -> Failed to write to csv file
 WRN200 -> Output path director not found. Default folder named "csv" is created in current working directory. 
 */
 
-/* Future developement */
-/*
-Table with 0 rows should write columgn name atlease */
