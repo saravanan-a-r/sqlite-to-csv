@@ -150,7 +150,7 @@ class ToCsv {
 
     parseObj(obj) {
         if(typeof obj === "object") {
-            return JSON.parse(obj);
+            return JSON.stringify(obj);
         }
         return obj;
     }

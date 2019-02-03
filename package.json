@@ -4,12 +4,14 @@
   "description": "A node module to convert sqlite database into csv file",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test"
   },
   "author": "Saravanan A R",
   "license": "ISC",
   "devDependencies": {
     "fs": "0.0.1-security",
+    "mocha": "^5.2.0",
+    "sinon": "^7.2.3",
     "sqlite3": "^4.0.0"
   },
   "repository": {
@@ -25,5 +27,8 @@
   "bugs": {
     "url": "https://github.com/saravanan-a-r/sqlite-to-csv/issues"
   },
-  "homepage": "https://github.com/saravanan-a-r/sqlite-to-csv#readme"
+  "homepage": "https://github.com/saravanan-a-r/sqlite-to-csv#readme",
+  "dependencies": {
+    "chai": "^4.2.0"
+  }
 }

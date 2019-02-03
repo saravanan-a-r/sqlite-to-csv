@@ -1,4 +1,4 @@
-const ToCsv = require("./sqlite-to-csv");
+const ToCsv = require("./src/sqlite-to-csv");
 
 let filePath = "/Users/saravana-4455/Library/Application Support/Notebook/allResources.db";
 let outputPath = "csv";
