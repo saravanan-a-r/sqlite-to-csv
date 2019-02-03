@@ -44,8 +44,48 @@ describe('sqlite-to-csv', () => {
     });
 
     context('ToCsv.convert()', () => {
+        let sandbox, db;
 
-        it('should resolve with code 200');
+        beforeEach('Creating sandbox environment', () => {
+            sandbox = sinon.createSandbox();
+            db = new sqlite3.Database(':memory');
+        });
+
+        afterEach('Clean up the sandbox environment', () => {
+            sandbox.restore();
+            db = null;
+        });
+
+        it('should resolve with code 200', async () => {
+            toCsv.filePath = 'filepath';
+            toCsv.outputPath = 'filepath';
+            let fs = require('fs');
+            let sqlite = require('sqlite3');
+       
+            sandbox.stub(fs, 'existsSync').callsFake( (path) => {
+                return true;
+            });
+
+            sandbox.stub(sqlite, 'Database').callsFake( (path, mode, callback) => {
+                callback(null);
+                return db;
+            });
+
+            sandbox.stub(db, 'serialize').callsFake( (callback) => {
+                callback();
+            });
+
+            sandbox.stub(db, 'all').callsFake( (query, params, callback) => {
+                callback(null, [{}]);
+            });
+
+            let result = await toCsv.convert();
+            let expectedResult = {
+                code : 200,
+                message : 'success'
+            };
+            expect(result).to.deep.equal(expectedResult);
+        });
     });
 
     context('ToCsv.readTable()', () => {
@@ -67,8 +107,36 @@ describe('sqlite-to-csv', () => {
     });
 
     context('ToCsv.writeTableToCsv()', () => {
-        
-        it('should resolve with code 200');
+        let sandbox;
+
+        beforeEach('Setting environment', () => {
+            sandbox = sinon.createSandbox();
+        });
+
+        afterEach('Clean up the environment', () => {
+            sandbox.restore();
+        });
+
+        it('should resolve with code 200', async () => {
+
+            let rows = [{
+                key1 : 'value1'
+            }, {
+                key2 : 'value2'
+            }];
+            let fs = require('fs');
+
+            sandbox.stub(fs, 'writeFile').callsFake( (path, data, encode, callback) => {
+                callback(null);
+            });
+
+            let result = await toCsv.writeTableToCsv(rows, 'somepath', 'somepath');
+            let expectedResult = {
+                code : 200,
+                message : 'Write operation success'
+            };
+            expect(result).to.deep.equal(expectedResult);
+        });
     });
 
     context('ToCsv.writeLog()', () => {
