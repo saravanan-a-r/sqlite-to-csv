@@ -65,7 +65,7 @@ class ToCsv {
                         if(err) {
                             throw "ERR103 :: Failed to execute query :: select name from sqlite_master where type='table'";
                         }
-                        let tblMeta = rows.filterTblMeta(rows);
+                        let tblMeta = this.filterTblMeta(rows);
                         let tableLen = tblMeta.length;
 
                         for(let i = 0; i<tableLen; i++) {
@@ -154,24 +154,22 @@ class ToCsv {
         }
         return obj;
     }
-}
 
-Array.prototype.filterTblMeta = (arr) => {
-    
-    var values  = [];
-    arr.map( (obj) => {
-        if(obj.name && obj.sql) {
-            var columns = obj.sql.match(/.*CREATE\s+TABLE\s+(\S+)\s*\((.*)\).*/)[2].split(/,/);
-            for(i = 0;i < columns.length; i++) {
-                columns[i] = columns[i].replace(/\s.*/g, '');
+    filterTblMeta(arr) {
+        var values  = [];
+        arr.map( (obj) => {
+            if(obj.name && obj.sql) {
+                var columns = obj.sql.match(/.*CREATE\s+TABLE\s+(\S+)\s*\((.*)\).*/)[2].split(/,/);
+                for(let i = 0;i < columns.length; i++) {
+                    columns[i] = columns[i].replace(/\s.*/g, '');
+                }
+                values.push({
+                    name : obj.name,
+                }); 
             }
-            values.push({
-                name : obj.name,
-            }); 
-        }
-    });
-
-    return values;
+        });
+        return values;
+    }
 }
 
 module.exports = ToCsv;

@@ -140,8 +140,27 @@ describe('sqlite-to-csv', () => {
     });
 
     context('ToCsv.writeLog()', () => {
+        let sandbox;
 
-        it('should write log');
+        beforeEach('Setting environment', () => {
+            sandbox = sinon.createSandbox();
+        });
+
+        afterEach('Clean up the environment', () => {
+            sandbox.restore();
+        });
+
+        it('should write log', () => {
+            toCsv.logPath = 'somepath';
+            let fs = require('fs');
+
+            sandbox.stub(fs, 'appendFileSync').callsFake( (path, message) => {
+                expect(path).to.equal('somepath');
+                expect(message).to.equal('demo log');
+            });
+
+            toCsv.writeLog('demo log');
+        });
     });
 
     context('ToCsv.parseObj()', () => {
@@ -158,6 +177,24 @@ describe('sqlite-to-csv', () => {
             let inputStr = "value_message";
             let result = toCsv.parseObj(inputStr);
             expect(inputStr).to.equal(result);
+        });
+    });
+
+    context('ToCsv.filterTblMeta()', () => {
+
+        it('should return table meta data', () => {
+
+            let tableMetaExpected = [{
+                name : 'mytable'
+            }];
+
+            let inputParams = [{
+                name : 'mytable',
+                sql : 'CREATE TABLE mytable (dummy_id Text PRIMARY KEY, main_id Text, type INTEGER, name TEXT)'
+            }];
+
+            let result = toCsv.filterTblMeta(inputParams);
+            expect(result).to.deep.equal(tableMetaExpected);
         });
     });
 });
