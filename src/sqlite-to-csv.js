@@ -94,9 +94,11 @@ class ToCsv {
             let outputPath = this.outputPath
             db.all("select * from " + tableName, [], async (err, rows) => {
                 if(err) {
-                    throw "ERR103 :: Failed to execute query :: select * from " + tableName;
+                    reject("Failed to execute query :: select * from " + tableName);
                 }
-                resolve(rows);
+                else {
+                    resolve(rows);
+                }
             });
         })
     }
@@ -116,7 +118,7 @@ class ToCsv {
 
                 fs.writeFile(outputPath + "/" + filePath, csvData, "utf-8", (err) => {
                     if(err) {
-                        throw "ERR104 :: Failed to write to " + outputPath + "/" + filePath;
+                        reject("ERR104 :: Failed to write to " + outputPath + "/" + filePath);
                     }
                     else {
                         resolve({

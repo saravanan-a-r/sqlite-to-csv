@@ -4,7 +4,7 @@
   "description": "A node module to convert sqlite database into csv file",
   "main": "index.js",
   "scripts": {
-    "test": "mocha test"
+    "test": "mocha test --recursive"
   },
   "author": "Saravanan A R",
   "license": "ISC",

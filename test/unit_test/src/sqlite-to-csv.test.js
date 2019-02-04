@@ -4,7 +4,7 @@ const expect = chai.expect;
 const sinon = require('sinon');
 const sqlite3 = require("sqlite3");
 
-const ToCsv = new require('../../src/sqlite-to-csv');
+const ToCsv = new require('../../../src/sqlite-to-csv');
 
 describe('sqlite-to-csv', () => {
     let className, toCsv;
@@ -56,7 +56,7 @@ describe('sqlite-to-csv', () => {
             db = null;
         });
 
-        it('should resolve with code 200', async () => {
+        it('Should resolve with code 200. No error arise', async () => {
             toCsv.filePath = 'filepath';
             toCsv.outputPath = 'filepath';
             let fs = require('fs');
@@ -86,11 +86,102 @@ describe('sqlite-to-csv', () => {
             };
             expect(result).to.deep.equal(expectedResult);
         });
+
+        it('Should throw error with code ERR102. The given toCsv.filePath params is undefined', async () => {
+            toCsv.filePath = undefined;
+            toCsv.outputPath = 'somepath';
+            let actualErr, result;
+            let expectedErr = "ERR102 :: filePath params missing in first argument of toCSV()";
+
+            sandbox.stub(toCsv, 'writeLog').callsFake( () => {});
+
+            [actualErr, result] = await parsePromise(toCsv.convert());
+            expect(toCsv.writeLog.calledOnce).to.be.true;
+            expect(actualErr).to.not.equal(null);
+            expect(actualErr).to.not.equal(undefined);
+            expect(actualErr).to.be.equal(expectedErr);
+        });
+
+        it('Should throw error with code ERR103. The given toCsv.outputPath params is undefined', async () => {
+            toCsv.filePath = 'somepath';
+            toCsv.outputPath = undefined;
+            let actualErr, result;
+            let expectedErr = "ERR103 :: outputPath params missing in first argument of toCSV()";
+
+            sandbox.stub(toCsv, 'writeLog').callsFake( () => {});
+
+            [actualErr, result] = await parsePromise(toCsv.convert());
+            expect(toCsv.writeLog.calledOnce).to.be.true;
+            expect(actualErr).to.not.equal(null);
+            expect(actualErr).to.not.equal(undefined);
+            expect(actualErr).to.be.equal(expectedErr);
+        });
+
+        it('Should throw error with code ERR100. The given toCsv.filePath params is not a valid path', async () => {
+            toCsv.filePath = 'somepath';
+            toCsv.outputPath = 'somepath';
+            let fs = require('fs');
+
+            let actualErr, result;
+            let expectedErr = "ERR100 :: " + toCsv.filePath + "not found";
+
+            sandbox.stub(fs, 'existsSync').callsFake( () => {
+                return false;
+            });
+
+            sandbox.stub(toCsv, 'writeLog').callsFake( () => {});
+
+            [actualErr, result] = await parsePromise(toCsv.convert());
+            expect(toCsv.writeLog.calledOnce).to.be.true;
+            expect(actualErr).to.not.equal(null);
+            expect(actualErr).to.be.equal(expectedErr);
+        });
+
+        it('If toCsv.outputPath is not valid, the default csv folder will be created', async () => {
+            toCsv.filePath = 'someFilePath';
+            toCsv.outputPath = 'someOutputPath';
+            let fs = require('fs');
+            let sqlite = require('sqlite3');
+
+            sandbox.stub(fs, 'existsSync').callsFake( (path) => {
+                if(path === toCsv.filePath) {
+                    return true;
+                }
+                return false;
+            });
+
+            sandbox.stub(toCsv, 'writeLog').callsFake( () => {});
+
+            sandbox.stub(fs, 'mkdirSync').callsFake( () => {});
+
+            sandbox.stub(sqlite, 'Database').callsFake( (path, mode, callback) => {
+                callback(null);
+                return db;
+            });
+
+            sandbox.stub(db, 'serialize').callsFake( (callback) => {
+                callback();
+            });
+
+            sandbox.stub(db, 'all').callsFake( (query, params, callback) => {
+                callback(null, [{}]);
+            });
+
+            let result = await toCsv.convert();
+            let expectedResult = {
+                code : 200,
+                message : 'success'
+            };
+            expect(toCsv.writeLog.calledOnce).to.be.true;
+            expect(fs.mkdirSync.calledOnce).to.be.true;
+            expect(toCsv.outputPath).to.be.equal("csv");
+            expect(result).to.deep.equal(expectedResult);
+        });
     });
 
     context('ToCsv.readTable()', () => {
 
-        it('should resolve with table rows', async () => {
+        it('Should resolve with table rows. No error arise.', async () => {
             toCsv.db = new sqlite3.Database(':memory');
             let rows = [{
                 key : 'value'   
@@ -101,6 +192,18 @@ describe('sqlite-to-csv', () => {
             });
             let result = await toCsv.readTable('tableName');
             expect(result).to.deep.equal(rows);
+            stub.restore();
+        });
+
+        it('Should fail db.all() and reject with error.', async () => {
+            toCsv.db = new sqlite3.Database(':memory');
+
+            let stub = sinon.stub(toCsv.db, 'all').callsFake( (query, params, callback) => {
+                callback("someError", null);
+            });
+            let result, err;
+            [err, result] = await parsePromise(toCsv.readTable('tableName'));
+            expect(err).to.not.equal(null);
             stub.restore();
         });
 
@@ -117,7 +220,7 @@ describe('sqlite-to-csv', () => {
             sandbox.restore();
         });
 
-        it('should resolve with code 200', async () => {
+        it('Should resolve with code 200', async () => {
 
             let rows = [{
                 key1 : 'value1'
@@ -136,6 +239,25 @@ describe('sqlite-to-csv', () => {
                 message : 'Write operation success'
             };
             expect(result).to.deep.equal(expectedResult);
+        });
+
+        it('Should reject with err if fs.writeFile() operation fail', async () => {
+
+            let rows = [{
+                key1 : 'value1'
+            }, {
+                key2 : 'value2'
+            }];
+            let fs = require('fs');
+
+            sandbox.stub(fs, 'writeFile').callsFake( (path, data, encode, callback) => {
+                callback("error");
+            });
+
+            let result, err;
+            [err, result] = await parsePromise(toCsv.writeTableToCsv(rows, 'somepath', 'somepath'));
+
+            expect(err).to.not.equal(null);
         });
     });
 
@@ -165,7 +287,7 @@ describe('sqlite-to-csv', () => {
 
     context('ToCsv.parseObj()', () => {
 
-        it('should stringify the given JSON object', () => {
+        it('Should stringify the given JSON object', () => {
             let jsonObj = {
                 key : 'value'
             };
@@ -173,7 +295,7 @@ describe('sqlite-to-csv', () => {
             expect(JSON.stringify(jsonObj)).to.equal(result);
         });
 
-        it('should return the input string as it is', () => {
+        it('Should return the input string as it is', () => {
             let inputStr = "value_message";
             let result = toCsv.parseObj(inputStr);
             expect(inputStr).to.equal(result);
@@ -182,7 +304,7 @@ describe('sqlite-to-csv', () => {
 
     context('ToCsv.filterTblMeta()', () => {
 
-        it('should return table meta data', () => {
+        it('Should return table meta data. No error arise', () => {
 
             let tableMetaExpected = [{
                 name : 'mytable'
@@ -198,3 +320,11 @@ describe('sqlite-to-csv', () => {
         });
     });
 });
+
+function parsePromise(promise) {
+    return promise.then( (result) => {
+        return [null, result];
+    }).catch( (err) => {
+        return [err, null];
+    });
+}
